@@ -572,58 +572,25 @@ namespace GrabnBite.Controllers
             {
                 ModelState.AddModelError(
                     nameof(request.AveragePreparationTimeMinutes),
-                    "Preparation time must be between 1 and 600 minutes.");
+                    "Preparation time must be between 1 and 600 minutes when provided.");
             }
 
             if (request.MaximumDeliveryDistanceKm is < 0 or > 500)
             {
                 ModelState.AddModelError(
                     nameof(request.MaximumDeliveryDistanceKm),
-                    "Delivery distance must be between 0 and 500 km.");
+                    "Delivery distance must be between 0 and 500 km when provided.");
             }
 
-            var operatingHours = request.OperatingHours
-                ?? new List<RestaurantOperatingHourDraftRequest>();
-
-            if (request.OperatingHours == null || operatingHours.Count > 7)
+            var operatingHours = request.OperatingHours ?? new List<RestaurantOperatingHourDraftRequest>();
+            if (operatingHours.Count > 7 ||
+                operatingHours.GroupBy(hour => hour.DayOfWeek).Any(group => group.Count() > 1) ||
+                operatingHours.Any(hour => !Enum.IsDefined(hour.DayOfWeek)) ||
+                operatingHours.Any(hour => hour.IsOpen &&
+                    (!hour.OpeningTime.HasValue || !hour.ClosingTime.HasValue ||
+                     hour.OpeningTime >= hour.ClosingTime)))
             {
-                ModelState.AddModelError(
-                    nameof(request.OperatingHours),
-                    "Provide no more than seven operating-hours entries.");
-            }
-            else
-            {
-                var duplicateDays = operatingHours
-                    .GroupBy(hour => hour.DayOfWeek)
-                    .Any(group => group.Count() > 1);
-
-                if (duplicateDays)
-                {
-                    ModelState.AddModelError(
-                        nameof(request.OperatingHours),
-                        "Only one operating-hours entry is allowed per day.");
-                }
-
-                foreach (var hour in operatingHours)
-                {
-                    if (!Enum.IsDefined(hour.DayOfWeek))
-                    {
-                        ModelState.AddModelError(
-                            nameof(request.OperatingHours),
-                            "An operating-hours entry contains an invalid weekday.");
-                        continue;
-                    }
-
-                    if (hour.IsOpen &&
-                        (!hour.OpeningTime.HasValue ||
-                         !hour.ClosingTime.HasValue ||
-                         hour.OpeningTime >= hour.ClosingTime))
-                    {
-                        ModelState.AddModelError(
-                            nameof(request.OperatingHours),
-                            $"Valid opening and closing times are required for {hour.DayOfWeek}.");
-                    }
-                }
+                return BadRequest("Operating hours contain invalid or duplicate entries.");
             }
 
             if (!ModelState.IsValid)
@@ -736,62 +703,8 @@ namespace GrabnBite.Controllers
                 and not RestaurantApplicationStatus.DocumentsRequired)
                 return Conflict("This application cannot be submitted in its current status.");
 
-            var missingItems = new List<string>();
-            void Require(bool condition, string label)
-            {
-                if (!condition) missingItems.Add(label);
-            }
-
-            Require(application.User.IsEmailVerified, "Verify your account email address");
-            Require(!string.IsNullOrWhiteSpace(application.TradingName), "Trading name");
-            Require(!string.IsNullOrWhiteSpace(application.RegisteredBusinessName), "Registered business name");
-            Require(!string.IsNullOrWhiteSpace(application.CipcRegistrationNumber), "CIPC registration number");
-            Require(!string.IsNullOrWhiteSpace(application.RestaurantCategory), "Restaurant category");
-            Require(!string.IsNullOrWhiteSpace(application.PhysicalAddress), "Physical address");
-            Require(!string.IsNullOrWhiteSpace(application.City), "City");
-            Require(!string.IsNullOrWhiteSpace(application.RestaurantContactNumber), "Restaurant contact number");
-            Require(!string.IsNullOrWhiteSpace(application.BusinessEmail), "Business email");
-            Require(!string.IsNullOrWhiteSpace(application.RepresentativeFullName), "Authorised representative name");
-            Require(!string.IsNullOrWhiteSpace(application.RepresentativePosition), "Representative position");
-            Require(!string.IsNullOrWhiteSpace(application.RepresentativeMobileNumber), "Representative mobile number");
-            Require(!string.IsNullOrWhiteSpace(application.RepresentativeEmail), "Representative email");
-            Require(application.HasAuthorityToRepresent == true, "Confirmation of authority to represent the business");
-            Require(
-                application.OffersCustomerCollection == true ||
-                application.OffersRestaurantDelivery == true ||
-                application.OffersGrubnBiteDelivery == true,
-                "At least one fulfilment option");
-            Require(application.AveragePreparationTimeMinutes is >= 1 and <= 600, "Valid average preparation time");
-            Require(application.CommissionOfferAccepted == true, "Acceptance of the commission terms");
-            Require(application.OperatingHours.Any(hour => hour.IsOpen), "At least one operating day");
-
-            var requiredDocuments = new[]
-            {
-                RestaurantDocumentType.CipcCertificate,
-                RestaurantDocumentType.FoodPremisesCertificate,
-                RestaurantDocumentType.IdentityOrAuthority,
-                RestaurantDocumentType.BankConfirmation
-            };
-
-            foreach (var requiredDocument in requiredDocuments)
-            {
-                if (!application.Documents.Any(document => document.DocumentType == requiredDocument))
-                    missingItems.Add($"{requiredDocument} document");
-            }
-
-            Require(
-                application.BankingDetails != null &&
-                !string.IsNullOrWhiteSpace(application.BankingDetails.AccountNumberEncrypted),
-                "Payout banking details");
-
-            if (missingItems.Count > 0)
-            {
-                return BadRequest(new
-                {
-                    message = "Complete the following items before submitting your application.",
-                    missingItems
-                });
-            }
+            // Application details, operating hours, documents and banking information are
+            // optional at submission. Reviewers can request any missing information later.
 
             var now = DateTime.UtcNow;
             var previousStatus = application.Status;
@@ -855,10 +768,10 @@ namespace GrabnBite.Controllers
         [StringLength(30)]
         public string? RestaurantContactNumber { get; set; }
 
-        [EmailAddress, StringLength(254)]
+        [StringLength(254)]
         public string? BusinessEmail { get; set; }
 
-        [Url, StringLength(500)]
+        [StringLength(500)]
         public string? WebsiteOrSocialMediaUrl { get; set; }
 
         [StringLength(200)]
@@ -870,7 +783,7 @@ namespace GrabnBite.Controllers
         [StringLength(30)]
         public string? RepresentativeMobileNumber { get; set; }
 
-        [EmailAddress, StringLength(254)]
+        [StringLength(254)]
         public string? RepresentativeEmail { get; set; }
 
         public bool? HasAuthorityToRepresent { get; set; }
