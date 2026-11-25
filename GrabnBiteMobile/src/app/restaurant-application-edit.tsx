@@ -135,18 +135,6 @@ export default function RestaurantApplicationEditScreen() {
     payoutContactEmail: "",
   });
   const [error, setError] = useState("");
-  const uploadedDocumentTypes = new Set(
-    (application?.documents ?? []).map((document) => document.documentType),
-  );
-  const missingSubmissionItems = [
-    !form.registeredBusinessName.trim() ? "Registered business name" : null,
-    !form.cipcRegistrationNumber.trim() ? "CIPC registration number" : null,
-    !form.restaurantCategory.trim() ? "Restaurant category" : null,
-    !uploadedDocumentTypes.has("FoodPremisesCertificate") ? "FoodPremisesCertificate document" : null,
-    !uploadedDocumentTypes.has("BankConfirmation") ? "BankConfirmation document" : null,
-  ].filter((item): item is string => item !== null);
-
-
   useEffect(() => {
     if (authLoading) return;
     if (!token || user?.role !== "Restaurant") {
@@ -287,11 +275,6 @@ export default function RestaurantApplicationEditScreen() {
 
   const handleSubmit = async () => {
     if (!token || !application) return;
-
-    if (missingSubmissionItems.length > 0) {
-      setError(`Complete these items before submitting: ${missingSubmissionItems.join(", ")}.`);
-      return;
-    }
 
     const preparationTime = form.averagePreparationTimeMinutes.trim()
       ? Number(form.averagePreparationTimeMinutes)
