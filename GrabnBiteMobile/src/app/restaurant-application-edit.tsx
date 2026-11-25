@@ -322,21 +322,9 @@ export default function RestaurantApplicationEditScreen() {
       router.replace("/restaurant-profile");
     } catch (requestError: any) {
       logAppError("Submitting restaurant application", requestError);
-      let missingItemsMessage: string | null = null;
-      try {
-        const responseBody = String(requestError?.message ?? "").match(/\{[\s\S]*\}/)?.[0];
-        if (responseBody) {
-          const parsedResponse = JSON.parse(responseBody);
-          if (Array.isArray(parsedResponse.missingItems)) {
-            missingItemsMessage = `Complete these items before submitting: ${parsedResponse.missingItems.join(", ")}.`;
-          }
-        }
-      } catch {
-        // Ignore an unstructured server response and show a safe message.
-      }
       showError(getUserFacingError(requestError, {
         title: "We couldn't confirm your submission",
-        message: missingItemsMessage ?? "Your draft or submission may already have been saved. Refresh the application status before trying to submit again.",
+        message: "Your application may already have been submitted. Refresh the application status before trying again.",
         actionLabel: "Refresh application",
       }), () => {
         void getRestaurantApplication(application.restaurantApplicationId, token)
@@ -400,10 +388,9 @@ export default function RestaurantApplicationEditScreen() {
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {missingSubmissionItems.length > 0 &&
-        (application?.status === "Draft" || application?.status === "DocumentsRequired") ? (
-          <Text style={styles.requiredNotice}>
-            Complete these items before submitting: {missingSubmissionItems.join(", ")}.
+        {(application?.status === "Draft" || application?.status === "DocumentsRequired") ? (
+          <Text style={styles.notice}>
+            You can submit this application now, even if some details or documents are not ready. Our team may request additional information during review.
           </Text>
         ) : null}
         {application?.documentsRequestedMessage ? (
@@ -414,11 +401,11 @@ export default function RestaurantApplicationEditScreen() {
         ) : null}
 
         <Text style={styles.sectionTitle}>Business information</Text>
-        <Field label="Trading name *" value={form.tradingName} onChangeText={(value) => update("tradingName", value)} />
-        <Field label="Registered business name *" value={form.registeredBusinessName} onChangeText={(value) => update("registeredBusinessName", value)} />
-        <Field label="CIPC registration number *" value={form.cipcRegistrationNumber} onChangeText={(value) => update("cipcRegistrationNumber", value)} />
-        <Field label="Restaurant category *" value={form.restaurantCategory} onChangeText={(value) => update("restaurantCategory", value)} placeholder="e.g. Fast food, Café, Bakery" />
-        <Field label="Physical address *" value={form.physicalAddress} onChangeText={(value) => update("physicalAddress", value)} />
+        <Field label="Trading name" value={form.tradingName} onChangeText={(value) => update("tradingName", value)} />
+        <Field label="Registered business name" value={form.registeredBusinessName} onChangeText={(value) => update("registeredBusinessName", value)} />
+        <Field label="CIPC registration number" value={form.cipcRegistrationNumber} onChangeText={(value) => update("cipcRegistrationNumber", value)} />
+        <Field label="Restaurant category" value={form.restaurantCategory} onChangeText={(value) => update("restaurantCategory", value)} placeholder="e.g. Fast food, Café, Bakery" />
+        <Field label="Physical address" value={form.physicalAddress} onChangeText={(value) => update("physicalAddress", value)} />
         <Field label="City *" value={form.city} onChangeText={(value) => update("city", value)} />
         <Field label="Business contact number" value={form.restaurantContactNumber} onChangeText={(value) => update("restaurantContactNumber", value)} keyboardType="phone-pad" />
         <Field label="Business email" value={form.businessEmail} onChangeText={(value) => update("businessEmail", value)} keyboardType="email-address" />
@@ -497,7 +484,7 @@ export default function RestaurantApplicationEditScreen() {
 
         <Text style={styles.sectionTitle}>Supporting documents</Text>
         <Text style={styles.helper}>
-          Food premises certificate * and bank confirmation * are required before submission. CIPC certificate and identity / authority documents may be requested where applicable.
+          All supporting documents are optional when you submit. Our team may request documents during the review process.
         </Text>
         <Text style={styles.helper}>
           Upload clear PDF or image copies. Files are stored privately and can only be accessed through an authenticated, short-lived download link.
@@ -505,9 +492,9 @@ export default function RestaurantApplicationEditScreen() {
         <View style={styles.documentTypes}>
           {([
             ["CipcCertificate", "CIPC certificate"],
-            ["FoodPremisesCertificate", "Food premises certificate *"],
+            ["FoodPremisesCertificate", "Food premises certificate"],
             ["IdentityOrAuthority", "Identity / authority"],
-            ["BankConfirmation", "Bank confirmation *"],
+            ["BankConfirmation", "Bank confirmation"],
             ["Other", "Other"],
           ] as [RestaurantDocumentType, string][]).map(([value, label]) => (
             <Pressable
@@ -752,7 +739,7 @@ export default function RestaurantApplicationEditScreen() {
         />
 
         <Text style={styles.helper}>
-          Saving stores your progress only. It does not submit the application for approval.
+          Saving stores your progress only. Submit your application whenever you are ready, even if some information is incomplete.
         </Text>
 
         {(application?.status === "Draft" || application?.status === "DocumentsRequired") ? (
